@@ -17,4 +17,10 @@
     <ProjectReference Include="..\..\infrastructure\PrintFlow.Persistence\PrintFlow.Persistence.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Controllers\" />
+    <Folder Include="Extensions\" />
+    <Folder Include="Middleware\" />
+  </ItemGroup>
+
 </Project>
