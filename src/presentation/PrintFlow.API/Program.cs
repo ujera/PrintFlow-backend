@@ -1,4 +1,5 @@
 ﻿using PrintFlow.API.Extensions;
+using PrintFlow.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,7 @@ builder.Services
     .AddDatabase(builder.Configuration)
     .AddIdentityConfiguration()
     .AddJwtAuthentication(builder.Configuration)
+    .AddInfrastructureServices()
     .AddSwaggerConfiguration()
     .AddCorsConfiguration()
     .AddControllers();
@@ -14,6 +16,7 @@ builder.Services
 var app = builder.Build();
 
 // ── Pipeline ──
+app.UseGlobalExceptionHandling();
 app.UseSwaggerConfiguration();
 app.UseHttpsRedirection();
 app.UseCors(CorsExtensions.FrontendPolicy);
