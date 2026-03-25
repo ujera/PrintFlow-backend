@@ -1,4 +1,6 @@
 ﻿using PrintFlow.API.Extensions;
+using PrintFlow.API.Middleware;
+using PrintFlow.Application;
 using PrintFlow.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,10 +10,14 @@ builder.Services
     .AddDatabase(builder.Configuration)
     .AddIdentityConfiguration()
     .AddJwtAuthentication(builder.Configuration)
+    .AddApplicationServices()
     .AddInfrastructureServices()
     .AddSwaggerConfiguration()
     .AddCorsConfiguration()
-    .AddControllers();
+    .AddControllers(options =>
+    {
+        options.Filters.Add<ValidationFilter>();  //To auto-validate all api calls
+    });
 
 var app = builder.Build();
 
