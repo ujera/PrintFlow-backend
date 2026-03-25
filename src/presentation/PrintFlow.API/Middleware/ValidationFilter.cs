@@ -30,6 +30,7 @@ public class ValidationFilter : IAsyncActionFilter
             var validationContext = new ValidationContext<object>(argument);
             var result = await validator.ValidateAsync(validationContext);
 
+
             if (!result.IsValid)
             {
                 var errors = result.Errors
