@@ -16,7 +16,7 @@ builder.Services
     .AddCorsConfiguration()
     .AddControllers(options =>
     {
-        options.Filters.Add<ValidationFilter>();  //To auto-validate all api calls
+        options.Filters.Add<ValidationFilter>();
     });
 
 var app = builder.Build();

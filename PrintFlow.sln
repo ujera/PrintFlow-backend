@@ -29,13 +29,18 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Worker", "Worker", "{3B4A3E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintFlow.Worker", "Worker\PrintFlow.Worker\PrintFlow.Worker.csproj", "{EEBF6DA5-ECA1-4E9E-83B0-CCB3E3B4D82B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
+	ProjectSection(SolutionItems) = preProject
+		.dockerignore = .dockerignore
+		docker-compose.yml = docker-compose.yml
+		Dockerfile.txt = Dockerfile.txt
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{2058613F-64CF-4382-84B6-E04973DE79D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -67,6 +72,9 @@ Global
 		{EEBF6DA5-ECA1-4E9E-83B0-CCB3E3B4D82B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EEBF6DA5-ECA1-4E9E-83B0-CCB3E3B4D82B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{FA2174F8-CE15-4CEA-824F-578C642E92DB} = {4E71226A-FC4D-4122-A2E6-7373C1B8987F}
 		{2058613F-64CF-4382-84B6-E04973DE79D6} = {FA2174F8-CE15-4CEA-824F-578C642E92DB}
@@ -78,5 +86,8 @@ Global
 		{9CFD598D-B0A4-4BFE-9170-08CE023F1D30} = {0F14F86B-45A3-4C06-A6BF-D1E547052714}
 		{92541AD8-C36D-4226-A0DE-E5C54A628E01} = {6988C6E6-14FE-4870-A3DF-B74D6E2F8667}
 		{EEBF6DA5-ECA1-4E9E-83B0-CCB3E3B4D82B} = {3B4A3E57-2D98-497D-A01A-75305A3A0796}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {34702C3E-B1A9-4CCE-B9B3-5416C087DC72}
 	EndGlobalSection
 EndGlobal

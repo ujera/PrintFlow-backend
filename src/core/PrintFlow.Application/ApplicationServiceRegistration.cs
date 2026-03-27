@@ -1,6 +1,8 @@
-﻿using System.Reflection;
-using FluentValidation;
+﻿using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using PrintFlow.Application.Interfaces.Services;
+using PrintFlow.Application.Services;
+using System.Reflection;
 
 namespace PrintFlow.Application;
 
@@ -12,6 +14,12 @@ public static class ApplicationServiceRegistration
 
         services.AddAutoMapper(assembly);
         services.AddValidatorsFromAssembly(assembly);
+
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ICatalogService, CatalogService>();
+        services.AddScoped<ICartService, CartService>();
+        services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
         return services;
     }
