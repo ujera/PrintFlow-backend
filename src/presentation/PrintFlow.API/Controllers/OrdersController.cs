@@ -36,4 +36,11 @@ public class OrdersController : BaseApiController
         var result = await _orderService.GetOrderByIdAsync(GetUserId(), id);
         return Ok(result);
     }
+
+    [HttpPost("{id:guid}/pay")]
+    public async Task<IActionResult> InitiatePayment(Guid id)
+    {
+        var result = await _orderService.InitiatePaymentAsync(GetUserId(), id);
+        return Ok(result);  
+    }
 }

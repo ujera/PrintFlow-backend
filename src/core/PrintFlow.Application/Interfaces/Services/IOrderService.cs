@@ -10,6 +10,7 @@ public interface IOrderService
     Task<ApiResult<OrderDto>> CreateOrderAsync(Guid userId, CreateOrderRequest request);
     Task<ApiResult<List<OrderListDto>>> GetMyOrdersAsync(Guid userId);
     Task<ApiResult<OrderDetailDto>> GetOrderByIdAsync(Guid userId, Guid orderId);
+    Task<ApiResult<PaymentIntentDto>> InitiatePaymentAsync(Guid userId, Guid orderId);
 
     // ── Admin ──
     Task<ApiResult<PagedResponse<OrderListDto>>> GetAllOrdersAsync(
@@ -19,6 +20,9 @@ public interface IOrderService
     Task<ApiResult<OrderDto>> UpdateOrderStatusAsync(Guid orderId, Guid adminUserId, UpdateOrderStatusRequest request);
     Task<ApiResult<bool>> ApproveOfflinePaymentAsync(Guid orderId, Guid adminUserId);
     Task<ApiResult<bool>> CancelOrderAsync(Guid orderId, Guid adminUserId);
+    Task<ApiResult<bool>> RefundOrderAsync(Guid orderId, Guid adminUserId);
+    Task HandlePaymentSucceededAsync(string stripePaymentIntentId);
+    Task HandlePaymentFailedAsync(string stripePaymentIntentId);
 
     // ── Dashboard ──
     Task<ApiResult<DashboardDto>> GetDashboardAsync();

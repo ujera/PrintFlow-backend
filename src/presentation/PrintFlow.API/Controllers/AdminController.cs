@@ -124,4 +124,11 @@ public class AdminController : BaseApiController
         var result = await _orderService.CancelOrderAsync(id, GetUserId());
         return Ok(result);
     }
+
+    [HttpPost("orders/{id:guid}/refund")]
+    public async Task<IActionResult> RefundOrder(Guid id)
+    {
+        var result = await _orderService.RefundOrderAsync(id, GetUserId());
+        return Ok(result);
+    }
 }

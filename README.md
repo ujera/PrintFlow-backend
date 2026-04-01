@@ -157,9 +157,3 @@ src/
 - `PUT  /api/admin/orders/:id/status` — Update order status
 - `POST /api/admin/orders/:id/approve-payment` — Approve offline payment
 - `POST /api/admin/orders/:id/cancel` — Cancel order
-
-## Team
-
-- Mariam Tarkashvili (Leader) — Auth, User Management
-- Mikheil Ujerashvili — Orders, Payments, Async Queues
-- Shota Khakhishvili — Product Catalog, Frontend, Testing

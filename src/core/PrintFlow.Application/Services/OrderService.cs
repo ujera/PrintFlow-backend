@@ -14,11 +14,13 @@ public class OrderService : IOrderService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly IPaymentProcessingService _paymentService;
 
-    public OrderService(IUnitOfWork unitOfWork, IMapper mapper)
+    public OrderService(IUnitOfWork unitOfWork, IMapper mapper, IPaymentProcessingService paymentService)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _paymentService = paymentService;
     }
 
     // ── Customer ──
@@ -102,6 +104,39 @@ public class OrderService : IOrderService
         }
     }
 
+    public async Task<ApiResult<PaymentIntentDto>> InitiatePaymentAsync(Guid userId, Guid orderId)
+    {
+        var order = await _unitOfWork.Orders.GetByIdAsync(orderId)
+            ?? throw new NotFoundException("Order", orderId);
+
+        if (order.UserId != userId)
+            throw new ForbiddenException();
+
+        if (order.PaymentMethod != PaymentMethod.Card)
+            throw new BadRequestException("This order does not use card payment.");
+
+        if (order.Status != OrderStatus.Created && order.Status != OrderStatus.PaymentFailed)
+            throw new BadRequestException("Payment cannot be initiated for this order status.");
+
+        var result = await _paymentService.CreatePaymentIntentAsync(orderId, order.TotalAmount);
+
+        await _unitOfWork.Payments.AddAsync(new Payment
+        {
+            OrderId = orderId,
+            Method = PaymentMethod.Card,
+            Status = PaymentStatus.Pending,
+            StripePaymentId = result.PaymentIntentId,
+            Amount = order.TotalAmount
+        });
+        await _unitOfWork.SaveChangesAsync();
+
+        return ApiResult<PaymentIntentDto>.Ok(new PaymentIntentDto
+        {
+            ClientSecret = result.ClientSecret,
+            PaymentIntentId = result.PaymentIntentId
+        });
+    }
+
     public async Task<ApiResult<List<OrderListDto>>> GetMyOrdersAsync(Guid userId)
     {
         var orders = await _unitOfWork.Orders.GetByUserIdAsync(userId);
@@ -120,6 +155,64 @@ public class OrderService : IOrderService
     }
 
     // ── Admin ──
+
+    public async Task HandlePaymentSucceededAsync(string stripePaymentIntentId)
+    {
+        var payment = await _unitOfWork.Payments.GetByStripePaymentIdAsync(stripePaymentIntentId);
+        if (payment is null) return;
+
+        var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId);
+        if (order is null) return;
+
+        payment.Status = PaymentStatus.Success;
+        payment.ProcessedAt = DateTime.UtcNow;
+
+        var oldStatus = order.Status;
+        order.Status = OrderStatus.Paid;
+        order.PaymentStatus = PaymentStatus.Success;
+
+        await _unitOfWork.OrderStatusHistories.AddAsync(new OrderStatusHistory
+        {
+            OrderId = order.Id,
+            OldStatus = oldStatus,
+            NewStatus = OrderStatus.Paid,
+            ChangedByUserId = order.UserId,
+            Notes = "Payment confirmed via Stripe"
+        });
+
+        _unitOfWork.Payments.Update(payment);
+        _unitOfWork.Orders.Update(order);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    public async Task HandlePaymentFailedAsync(string stripePaymentIntentId)
+    {
+        var payment = await _unitOfWork.Payments.GetByStripePaymentIdAsync(stripePaymentIntentId);
+        if (payment is null) return;
+
+        var order = await _unitOfWork.Orders.GetByIdAsync(payment.OrderId);
+        if (order is null) return;
+
+        payment.Status = PaymentStatus.Failed;
+        payment.ProcessedAt = DateTime.UtcNow;
+
+        var oldStatus = order.Status;
+        order.Status = OrderStatus.PaymentFailed;
+        order.PaymentStatus = PaymentStatus.Failed;
+
+        await _unitOfWork.OrderStatusHistories.AddAsync(new OrderStatusHistory
+        {
+            OrderId = order.Id,
+            OldStatus = oldStatus,
+            NewStatus = OrderStatus.PaymentFailed,
+            ChangedByUserId = order.UserId,
+            Notes = "Payment failed via Stripe"
+        });
+
+        _unitOfWork.Payments.Update(payment);
+        _unitOfWork.Orders.Update(order);
+        await _unitOfWork.SaveChangesAsync();
+    }
 
     public async Task<ApiResult<PagedResponse<OrderListDto>>> GetAllOrdersAsync(
         int pageNumber, int pageSize, string? status, DateTime? fromDate,
@@ -250,6 +343,65 @@ public class OrderService : IOrderService
         await _unitOfWork.SaveChangesAsync();
 
         return ApiResult<bool>.Ok(true, "Order cancelled.");
+    }
+    public async Task<ApiResult<bool>> RefundOrderAsync(Guid orderId, Guid adminUserId)
+    {
+        var order = await _unitOfWork.Orders.GetByIdAsync(orderId)
+            ?? throw new NotFoundException("Order", orderId);
+
+        if (order.PaymentStatus != PaymentStatus.Success)
+            throw new BadRequestException("Order has no successful payment to refund.");
+
+        var payments = await _unitOfWork.Payments.GetByOrderIdAsync(orderId);
+        var successfulPayment = payments.FirstOrDefault(p =>
+            p.Status == PaymentStatus.Success && p.Method == PaymentMethod.Card);
+
+        if (successfulPayment?.StripePaymentId is null)
+            throw new BadRequestException("No Stripe payment found to refund.");
+
+        var refundResult = await _paymentService.RefundPaymentAsync(
+            successfulPayment.StripePaymentId, order.TotalAmount);
+
+        if (!refundResult.Success)
+            throw new PaymentException("Refund failed.");
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await _unitOfWork.Payments.AddAsync(new Payment
+            {
+                OrderId = orderId,
+                Method = PaymentMethod.Card,
+                Status = PaymentStatus.Refunded,
+                StripePaymentId = refundResult.RefundId,
+                Amount = order.TotalAmount,
+                ProcessedAt = DateTime.UtcNow
+            });
+
+            var oldStatus = order.Status;
+            order.Status = OrderStatus.Cancelled;
+            order.PaymentStatus = PaymentStatus.Refunded;
+
+            await _unitOfWork.OrderStatusHistories.AddAsync(new OrderStatusHistory
+            {
+                OrderId = orderId,
+                OldStatus = oldStatus,
+                NewStatus = OrderStatus.Cancelled,
+                ChangedByUserId = adminUserId,
+                Notes = "Order refunded and cancelled"
+            });
+
+            _unitOfWork.Orders.Update(order);
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+
+            return ApiResult<bool>.Ok(true, "Order refunded.");
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
     }
 
     // ── Dashboard ──

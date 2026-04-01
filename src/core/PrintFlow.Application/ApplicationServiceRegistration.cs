@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using PrintFlow.Application.Interfaces.Services;
 using PrintFlow.Application.Services;
+using PrintFlow.Infrastructure.Services;
 using System.Reflection;
 
 namespace PrintFlow.Application;
@@ -20,6 +21,7 @@ public static class ApplicationServiceRegistration
         services.AddScoped<ICartService, CartService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IPaymentProcessingService, StripePaymentService>();
 
         return services;
     }

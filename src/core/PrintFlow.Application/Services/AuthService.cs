@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -51,10 +52,56 @@ public class AuthService : IAuthService
 
     public async Task<ApiResult<AuthResponse>> GoogleLoginAsync(GoogleAuthRequest request)
     {
-        // TODO: Validate IdToken with Google.Apis.Auth.GoogleJsonWebSignature
-        // var payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken);
-        // For now, placeholder:
-        throw new BadRequestException("Google OAuth not yet configured. Add Google.Apis.Auth package and configure Client ID.");
+        var googleClientId = _configuration["Google:ClientId"]
+                                    ?? throw new BadRequestException("Google OAuth is not configured.");
+
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var settings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { googleClientId }
+            };
+            payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+        }
+        catch (InvalidJwtException)
+        {
+            throw new UnauthorizedException("Invalid Google token.");
+        }
+
+        var user = await FindUserByGoogleIdOrEmail(payload.Subject, payload.Email);
+
+        if (user is null)
+        {
+            user = new User
+            {
+                UserName = payload.Email,
+                Email = payload.Email,
+                Name = payload.Name ?? payload.Email,
+                Role = UserRole.Customer,
+                GoogleId = payload.Subject,
+                AvatarUrl = payload.Picture,
+                EmailConfirmed = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var createResult = await _userManager.CreateAsync(user);
+            if (!createResult.Succeeded)
+            {
+                var errors = createResult.Errors.Select(e => e.Description).ToList();
+                throw new BadRequestException(errors);
+            }
+
+            await _userManager.AddToRoleAsync(user, "Customer");
+        }
+        else if (user.GoogleId is null)
+        {
+            user.GoogleId = payload.Subject;
+            user.AvatarUrl ??= payload.Picture;
+            await _userManager.UpdateAsync(user);
+        }
+
+        return ApiResult<AuthResponse>.Ok(await GenerateAuthResponse(user));
     }
 
     public async Task<ApiResult<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request)
@@ -79,6 +126,13 @@ public class AuthService : IAuthService
     }
 
     // ── Private helpers ──
+
+    private async Task<User?> FindUserByGoogleIdOrEmail(string googleId, string email)
+    {
+        var user = _userManager.Users.FirstOrDefault(u => u.GoogleId == googleId);
+        if (user is not null) return user;
+        return await _userManager.FindByEmailAsync(email);
+    }
 
     private async Task<AuthResponse> GenerateAuthResponse(User user)
     {
