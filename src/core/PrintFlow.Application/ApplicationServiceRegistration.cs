@@ -25,11 +25,14 @@ public static class ApplicationServiceRegistration
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IPaymentProcessingService, StripePaymentService>();
+        
+
 
         // External services
         services.AddScoped<IPaymentProcessingService, StripePaymentService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
         // RabbitMQ via MassTransit (publisher only — no consumers in API)
         services.AddMassTransit(config =>

@@ -19,6 +19,11 @@ builder.Services
         options.Filters.Add<ValidationFilter>();
     });
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10MB
+});
+
 var app = builder.Build();
 
 // ── Pipeline ──
@@ -26,6 +31,11 @@ app.UseGlobalExceptionHandling();
 app.UseSwaggerConfiguration();
 app.UseHttpsRedirection();
 app.UseCors(CorsExtensions.FrontendPolicy);
+
+// Serve uploaded files from wwwroot/uploads
+app.UseStaticFiles();
+
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
