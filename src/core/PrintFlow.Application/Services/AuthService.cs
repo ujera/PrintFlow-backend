@@ -223,4 +223,33 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Invalid refresh token.");
         }
     }
+    // Add this method to your existing AuthService class:
+
+    public async Task<ApiResult<AuthResponse>> RegisterTestCustomerAsync(TestRegisterRequest request)
+    {
+        var existingUser = await _userManager.FindByEmailAsync(request.Email);
+        if (existingUser is not null)
+            throw new ConflictException("User", "email", request.Email);
+
+        var user = new User
+        {
+            UserName = request.Email,
+            Email = request.Email,
+            Name = request.Name,
+            Role = UserRole.Customer,
+            EmailConfirmed = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var result = await _userManager.CreateAsync(user, request.Password);
+        if (!result.Succeeded)
+        {
+            var errors = result.Errors.Select(e => e.Description).ToList();
+            throw new BadRequestException(errors);
+        }
+
+        await _userManager.AddToRoleAsync(user, "Customer");
+
+        return ApiResult<AuthResponse>.Ok(await GenerateAuthResponse(user), "Customer registered.");
+    }
 }

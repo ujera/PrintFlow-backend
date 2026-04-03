@@ -1,10 +1,12 @@
 ﻿using AutoMapper;
+using MassTransit;
 using PrintFlow.Application.DTOs.Admin;
 using PrintFlow.Application.DTOs.Common;
 using PrintFlow.Application.DTOs.Orders;
 using PrintFlow.Application.Exceptions;
 using PrintFlow.Application.Interfaces.Repositories;
 using PrintFlow.Application.Interfaces.Services;
+using PrintFlow.Application.Messages;
 using PrintFlow.Domain.Entities;
 using PrintFlow.Domain.Enums;
 
@@ -15,20 +17,20 @@ public class OrderService : IOrderService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly IPaymentProcessingService _paymentService;
+    private readonly IPublishEndpoint _publishEndpoint;
 
-    public OrderService(IUnitOfWork unitOfWork, IMapper mapper, IPaymentProcessingService paymentService)
+    public OrderService(IUnitOfWork unitOfWork, IMapper mapper,
+        IPaymentProcessingService paymentService, IPublishEndpoint publishEndpoint)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _paymentService = paymentService;
+        _publishEndpoint = publishEndpoint;
     }
-
-    // ── Customer ──
 
     public async Task<ApiResult<OrderDto>> CreateOrderAsync(Guid userId, CreateOrderRequest request)
     {
         var cartItems = await _unitOfWork.CartItems.GetByUserIdWithProductAsync(userId);
-
         if (cartItems.Count == 0)
             throw new BadRequestException("Cart is empty.");
 
@@ -46,7 +48,6 @@ public class OrderService : IOrderService
                 Notes = request.Notes
             };
 
-            // Build order items from cart
             decimal total = 0;
             foreach (var cartItem in cartItems)
             {
@@ -71,15 +72,10 @@ public class OrderService : IOrderService
 
             order.TotalAmount = total;
 
-            // Set initial status based on payment method
             if (paymentMethod == PaymentMethod.BankTransfer)
-            {
                 order.Status = OrderStatus.AwaitingPayment;
-            }
 
             await _unitOfWork.Orders.AddAsync(order);
-
-            // Log initial status
             await _unitOfWork.OrderStatusHistories.AddAsync(new OrderStatusHistory
             {
                 OrderId = order.Id,
@@ -89,10 +85,11 @@ public class OrderService : IOrderService
                 Notes = "Order created"
             });
 
-            // Clear cart
             await _unitOfWork.CartItems.ClearCartAsync(userId);
             await _unitOfWork.SaveChangesAsync();
             await _unitOfWork.CommitTransactionAsync();
+
+            await _publishEndpoint.Publish(new OrderCreatedEvent(order.Id));
 
             var created = await _unitOfWork.Orders.GetWithDetailsAsync(order.Id);
             return ApiResult<OrderDto>.Ok(_mapper.Map<OrderDto>(created!), "Order created.");
@@ -154,8 +151,6 @@ public class OrderService : IOrderService
         return ApiResult<OrderDetailDto>.Ok(_mapper.Map<OrderDetailDto>(order));
     }
 
-    // ── Admin ──
-
     public async Task HandlePaymentSucceededAsync(string stripePaymentIntentId)
     {
         var payment = await _unitOfWork.Payments.GetByStripePaymentIdAsync(stripePaymentIntentId);
@@ -183,6 +178,8 @@ public class OrderService : IOrderService
         _unitOfWork.Payments.Update(payment);
         _unitOfWork.Orders.Update(order);
         await _unitOfWork.SaveChangesAsync();
+
+        await _publishEndpoint.Publish(new PaymentSucceededEvent(order.Id));
     }
 
     public async Task HandlePaymentFailedAsync(string stripePaymentIntentId)
@@ -212,6 +209,8 @@ public class OrderService : IOrderService
         _unitOfWork.Payments.Update(payment);
         _unitOfWork.Orders.Update(order);
         await _unitOfWork.SaveChangesAsync();
+
+        await _publishEndpoint.Publish(new PaymentFailedEvent(order.Id));
     }
 
     public async Task<ApiResult<PagedResponse<OrderListDto>>> GetAllOrdersAsync(
@@ -220,9 +219,7 @@ public class OrderService : IOrderService
     {
         OrderStatus? statusFilter = null;
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<OrderStatus>(status, true, out var parsed))
-        {
             statusFilter = parsed;
-        }
 
         var (items, totalCount) = await _unitOfWork.Orders.GetFilteredPagedAsync(
             pageNumber, pageSize, statusFilter, fromDate, toDate, searchTerm);
@@ -270,6 +267,11 @@ public class OrderService : IOrderService
         _unitOfWork.Orders.Update(order);
         await _unitOfWork.SaveChangesAsync();
 
+        await _publishEndpoint.Publish(new OrderStatusChangedEvent(orderId, oldStatus.ToString(), newStatus.ToString()));
+
+        if (newStatus == OrderStatus.Completed)
+            await _publishEndpoint.Publish(new OrderCompletedEvent(orderId));
+
         return ApiResult<OrderDto>.Ok(_mapper.Map<OrderDto>(order), $"Order status updated to {newStatus}.");
     }
 
@@ -310,6 +312,8 @@ public class OrderService : IOrderService
             await _unitOfWork.SaveChangesAsync();
             await _unitOfWork.CommitTransactionAsync();
 
+            await _publishEndpoint.Publish(new PaymentSucceededEvent(orderId));
+
             return ApiResult<bool>.Ok(true, "Payment approved.");
         }
         catch
@@ -342,8 +346,11 @@ public class OrderService : IOrderService
         _unitOfWork.Orders.Update(order);
         await _unitOfWork.SaveChangesAsync();
 
+        await _publishEndpoint.Publish(new OrderStatusChangedEvent(orderId, oldStatus.ToString(), "Cancelled"));
+
         return ApiResult<bool>.Ok(true, "Order cancelled.");
     }
+
     public async Task<ApiResult<bool>> RefundOrderAsync(Guid orderId, Guid adminUserId)
     {
         var order = await _unitOfWork.Orders.GetByIdAsync(orderId)
@@ -403,8 +410,6 @@ public class OrderService : IOrderService
             throw;
         }
     }
-
-    // ── Dashboard ──
 
     public async Task<ApiResult<DashboardDto>> GetDashboardAsync()
     {

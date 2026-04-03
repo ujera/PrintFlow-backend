@@ -43,4 +43,14 @@ public class AuthController : BaseApiController
         var result = await _authService.GetCurrentUserAsync(GetUserId());
         return Ok(result);
     }
+
+    /// <summary>
+    /// DEV ONLY — Register a test customer. Remove before production.
+    /// </summary>
+    [HttpPost("register-test")]
+    public async Task<IActionResult> RegisterTestCustomer([FromBody] TestRegisterRequest request)
+    {
+        var result = await _authService.RegisterTestCustomerAsync(request);
+        return Ok(result);
+    }
 }
