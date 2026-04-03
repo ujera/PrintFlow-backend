@@ -1,4 +1,5 @@
-﻿using Microsoft.OpenApi.Models;
+﻿using System.Reflection;
+using Microsoft.OpenApi.Models;
 
 namespace PrintFlow.API.Extensions;
 
@@ -13,9 +14,14 @@ public static class SwaggerExtensions
             {
                 Title = "PrintFlow API",
                 Version = "v1",
-                Description = "Custom Print Shop Order Management System"
+                Description = "Custom Print Shop Order Management System — REST API for managing product catalog, customer orders, payments, and notifications.",
+                Contact = new OpenApiContact
+                {
+                    Name = "PrintFlow Team"
+                }
             });
 
+            // JWT auth
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Name = "Authorization",
@@ -23,7 +29,7 @@ public static class SwaggerExtensions
                 Scheme = "bearer",
                 BearerFormat = "JWT",
                 In = ParameterLocation.Header,
-                Description = "Enter your JWT token"
+                Description = "Login via /api/auth/login, then paste the accessToken here."
             });
 
             options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -41,12 +47,23 @@ public static class SwaggerExtensions
                 }
             });
 
-            // Enable file upload in Swagger UI
+            // File upload support
             options.MapType<IFormFile>(() => new OpenApiSchema
             {
                 Type = "string",
                 Format = "binary"
             });
+
+            // Load XML docs from API project
+            var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            if (File.Exists(xmlPath))
+            {
+                options.IncludeXmlComments(xmlPath);
+            }
+
+            // Sort endpoints by tag
+            options.OrderActionsBy(api => api.GroupName ?? api.RelativePath);
         });
 
         return services;
@@ -61,6 +78,8 @@ public static class SwaggerExtensions
             {
                 options.SwaggerEndpoint("/swagger/v1/swagger.json", "PrintFlow API v1");
                 options.RoutePrefix = "swagger";
+                options.DocumentTitle = "PrintFlow API Documentation";
+                options.DefaultModelsExpandDepth(1);
             });
         }
 
