@@ -10,8 +10,8 @@ builder.Services
     .AddDatabase(builder.Configuration)
     .AddIdentityConfiguration()
     .AddJwtAuthentication(builder.Configuration)
-    .AddApplicationServices(builder.Configuration)
-    .AddInfrastructureServices()
+    .AddApplicationServices()
+    .AddInfrastructureServices(builder.Configuration)
     .AddSwaggerConfiguration()
     .AddCorsConfiguration()
     .AddControllers(options =>
