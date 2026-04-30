@@ -44,6 +44,18 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=printflow_db;Username=postgres;Password=postgres
       - RabbitMQ__Host=rabbitmq
+      - Jwt__Key=YourSuperSecretKeyThatIsAtLeast32Characters!
+      - Jwt__Issuer=PrintFlow
+      - Jwt__Audience=PrintFlowClients
+      - Stripe__SecretKey=sk_test_YOUR_REAL_KEY_HERE
+      - Stripe__PublishableKey=pk_test_YOUR_REAL_KEY_HERE
+      - Stripe__WebhookSecret=whsec_YOUR_SECRET_HERE
+      - Google__ClientId=539054122418-v4h1tk1ja5si1psc0on410fq0vbqpg40.apps.googleusercontent.com
+      - Smtp__Host=sandbox.smtp.mailtrap.io
+      - Smtp__Port=587
+      - Smtp__Username=YOUR_MAILTRAP_USERNAME
+      - Smtp__Password=YOUR_MAILTRAP_PASSWORD
+      - Smtp__FromEmail=noreply@printflow.io
     depends_on:
       db:
         condition: service_healthy
